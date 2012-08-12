@@ -3,10 +3,13 @@
 # Author: kattunga
 # Date: August 11, 2013
 # Version: 2.0
+#
+# http://linuxzfs.blogspot.com.ar/2012/08/zfs-replication-script.html
+# https://github.com/kattunga/zfs-scripts.git
+#
 # Credits: 
 #    Mike La Spina for the original concept and script http://blog.laspina.ca/
 #  
-#
 # Function: Provides snapshot and send process which replicates ZFS file systems from a source to target server.
 # Maintains a runing snapshot archive for X days (X being the value of MAX_TIME).
 #
