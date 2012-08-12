@@ -4,7 +4,7 @@
 # Date: August 11, 2013
 # Version: 2.0
 #
-# http://linuxzfs.blogspot.com.ar/2012/08/zfs-replication-script.html
+# http://linuxzfs.blogspot.com/2012/08/zfs-replication-script.html
 # https://github.com/kattunga/zfs-scripts.git
 #
 # Credits: 
