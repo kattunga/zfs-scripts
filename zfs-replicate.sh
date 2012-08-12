@@ -15,10 +15,42 @@
 #    Maintains a runing snapshot archive for X time
 #
 
-# email configuration, install package mailutils, ssmtp and configure /etc/ssmtp/ssmtp.conf
-mail_from=
-mail_to=
-mail_subject=
+#######################################################################################
+# email configuration. Install package mailutils, ssmtp and configure /etc/ssmtp/ssmtp.conf
+#######################################################################################
+
+mail_from=sop_warn@sig2k.com.ar
+mail_to=sop_warn@sig2k.com.ar
+mail_subject="server-sig-64 - fallo de replicacion"
+
+#######################################################################################
+##################### Do not touch anything below this line ###########################
+#######################################################################################
+
+show_help() {
+     echo "-h target user@host"
+	echo "-p target ssh port"
+	echo "-s source zfs dataset"
+	echo "-d target zfs dataset (default = source)"
+	echo "-f snapshot prefix"
+	echo "-t max time to preserve snapshots"
+	echo '   eg. "7 days ago", "12 hours ago", "10 minutes ago", (default infinite)'
+	echo "-v verbose"
+	echo "-c clean snapshots in target that are not in source"
+	echo "-k compare source and target with checksum using rsync"
+	echo "-n no snapshot"
+	echo "-r no replicate"
+	echo "-z create target filesystem if needed"
+	echo "-o replication protocol"
+	echo "   SSH (remote networks)"
+	echo "   SSHGZIP (remote networks, low bandwith)"
+	echo "   NETCAT (use port 8023)"
+	echo "   SOCAT (use port 8023)"
+	echo "   NETSOCAT (recomended, netcat in server / socat in client, use port 8023)"
+	echo "   netcat requires package netcat-traditional, netcat-openbsd is not supported"
+	echo "-l compression level 1..9 (default 6)"
+	exit
+}
 
 # parse parameters
 TGT_HOST=
@@ -37,7 +69,7 @@ CREATEFS=false
 PROTOCOL="SSH"
 ZIPLEVEL=6
 
-while getopts “h:p:s:d:f:t:o:l:vcknrmz” OPTION
+while getopts “h:p:s:d:f:t:o:l:vcknrmz?” OPTION
 do
      case $OPTION in
          h)
@@ -85,6 +117,9 @@ do
          z)
              CREATEFS=true
              ;;
+         ?)
+             show_help
+             ;;
      esac
 done
 
@@ -93,8 +128,8 @@ FLG_FILE=$0.flg
 
 # Check if no current replication is running
 if [ -e "$FLG_FILE" ]; then
-    echo "-> ERROR, replication is currently running"
-    exit
+	echo "-> ERROR, replication is currently running"
+	exit
 fi
 
 #######################################################################################
@@ -106,13 +141,13 @@ fi
 
 end_script() {
 
-    # delete control flag
-    if [ -e "$FLG_FILE" ]; then
-        rm $FLG_FILE
-    fi
+	# delete control flag
+	if [ -e "$FLG_FILE" ]; then
+		rm $FLG_FILE
+	fi
 
-    echo $(date) "End ------------------------------------------------------------"
-    exit
+	echo $(date) "End ------------------------------------------------------------"
+	exit
 }
 
 #######################################################################################
@@ -124,14 +159,14 @@ end_script() {
 
 check_for_error() {
 
-    if [ -s "$0.err" ]; then
-        echo $(date) $(cat $0.err)
-        if [ $SENDMAIL == true ]
-        then
-            mail -a "From: $mail_from" -s "$mail_subject" $mail_to < $0.err
-        fi
-        end_script
-    fi
+	if [ -s "$0.err" ]; then
+		echo $(date) $(cat $0.err)
+		if [ $SENDMAIL == true ]
+		then
+			mail -a "From: $mail_from" -s "$mail_subject" $mail_to < $0.err
+		fi
+		end_script
+	fi
 }
 
 #######################################################################################
@@ -143,8 +178,8 @@ check_for_error() {
 
 log_error() {
 
-    echo $1 > $0.err
-    check_for_error
+	echo $1 > $0.err
+	check_for_error
 }
 
 #######################################################################################
@@ -156,10 +191,10 @@ log_error() {
 
 create_fs_snap() {
 
-    SnapName="$SNP_PREF$(date +%Y%m%d%H%M%S)"
-    echo $(date) "-> $SRC_PATH@$SnapName Snapshot creation."
-    zfs snapshot $SRC_PATH\@$SnapName 2> $0.err
-    check_for_error
+	SnapName="$SNP_PREF$(date +%Y%m%d%H%M%S)"
+	echo $(date) "-> $SRC_PATH@$SnapName Snapshot creation."
+	zfs snapshot $SRC_PATH\@$SnapName 2> $0.err
+	check_for_error
 }
 
 #######################################################################################
@@ -172,19 +207,19 @@ create_fs_snap() {
 
 target_fs_exists() {
 
-    target_fs_name=$(ssh -n $TGT_HOST $TGT_PORT zfs list -o name -H $TGT_PATH 2> $0.err | tail -1 )
-    if [ -s "$0.err" ]
-    then
-        path_error=$(grep "$TGT_PATH" $0.err)
-        if [ "$path_error" == "" ]
-        then
-            check_for_error
-        else
-            rm $0.err
-            echo $(date) "-> $TGT_PATH file system does not exist on target host $TGT_HOST."
-        fi
-    fi
-    
+	target_fs_name=$(ssh -n $TGT_HOST $TGT_PORT zfs list -o name -H $TGT_PATH 2> $0.err | tail -1 )
+	if [ -s "$0.err" ]
+	then
+		path_error=$(grep "$TGT_PATH" $0.err)
+		if [ "$path_error" == "" ]
+		then
+			check_for_error
+		else
+			rm $0.err
+			echo $(date) "-> $TGT_PATH file system does not exist on target host $TGT_HOST."
+		fi
+	fi
+	
 }
 
 #######################################################################################
@@ -197,12 +232,12 @@ target_fs_exists() {
 
 check_last_source_snap() {
 
-    last_snap_source=$( zfs list -o name -t snapshot -H 2> $0.err | grep $SRC_PATH\@ | tail -1 )
-    check_for_error
-    if [ "$last_snap_source" == "" ]
-    then
-        log_error "There is no snapshots in source filesystem $SRC_PATH"
-    fi
+	last_snap_source=$( zfs list -o name -t snapshot -H 2> $0.err | grep $SRC_PATH\@ | tail -1 )
+	check_for_error
+	if [ "$last_snap_source" == "" ]
+	then
+		log_error "There is no snapshots in source filesystem $SRC_PATH"
+	fi
 
 }
 
@@ -216,12 +251,12 @@ check_last_source_snap() {
 
 check_last_target_snap() {
 
-    last_snap_target=$( ssh -n $TGT_HOST $TGT_PORT zfs list -H -o name -r -t snapshot 2> $0.err | grep $TGT_PATH\@ | tail -1 )
-    check_for_error
-    if [ "$last_snap_target" == "" ]
-    then
-        log_error "There is no snapshots in target filesystem $TGT_PATH"
-    fi
+	last_snap_target=$( ssh -n $TGT_HOST $TGT_PORT zfs list -H -o name -r -t snapshot 2> $0.err | grep $TGT_PATH\@ | tail -1 )
+	check_for_error
+	if [ "$last_snap_target" == "" ]
+	then
+		log_error "There is no snapshots in target filesystem $TGT_PATH"
+	fi
 }
 
 #######################################################################################
@@ -235,45 +270,45 @@ check_last_target_snap() {
 
 target_fs_create() {
 
-    check_last_source_snap 
-    echo $(date) "-> $last_snap_source Initial replication."
+	check_last_source_snap 
+	echo $(date) "-> $last_snap_source Initial replication."
 
-    ssh -n $TGT_HOST $TGT_PORT zfs create -p $TGT_PATH 2> $0.err
-    check_for_error
-    ssh -n $TGT_HOST $TGT_PORT zfs set mountpoint=none $TGT_PATH 2> $0.err
-    check_for_error
+	ssh -n $TGT_HOST $TGT_PORT zfs create -p $TGT_PATH 2> $0.err
+	check_for_error
+	ssh -n $TGT_HOST $TGT_PORT zfs set mountpoint=none $TGT_PATH 2> $0.err
+	check_for_error
 
-    # using ssh (for remote networks)
-    if [ "$PROTOCOL" == "SSH" ]
-    then
-        zfs send -R $last_snap_source | ssh -c blowfish $TGT_HOST $TGT_PORT zfs recv $VERBOSE -F $TGT_PATH 2> $0.err
-    fi
-    # using ssh with compression (for slow remote networks)
-    if [ "$PROTOCOL" == "SSHGZIP" ]
-    then
-        zfs send -R $last_snap_source | gzip $ZIPLEVEL -c | ssh -c blowfish $TGT_HOST $TGT_PORT "zcat | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
-    fi
-    # using netcat (local network) requires "netcat-traditional", must uninstall "netcat-openbds"
-    if [ "$PROTOCOL" == "NETCAT" ]
-    then
-        ssh -n -f $TGT_HOST $TGT_PORT "nc -w 1 -l -p 8023 | zfs recv $VERBOSE -F $TGT_PATH"
-        sleep 1
-        zfs send -R $last_snap_source | nc $TGT_HOST 8023
-    fi
-    # using socat (local network)
-    if [ "$PROTOCOL" == "SOCAT" ]
-    then
-        zfs send -R $last_snap_source | socat - tcp4:$TGT_HOST:8023,retry=5 &
-        ssh -n $TGT_HOST $TGT_PORT "socat tcp4-listen:8023 - | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
-    fi
-    # using netcat in server and socat in client, recomended, requires "netcat-traditional", must uninstall "netcat-openbds"
-    if [ "$PROTOCOL" == "NETSOCAT" ] 
-    then
-        zfs send -R $last_snap_source | socat - tcp4:$TGT_HOST:8023,retry=5 &
-        ssh -n $TGT_HOST $TGT_PORT "nc -w 1 -l -p 8023 | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
-    fi
+	# using ssh (for remote networks)
+	if [ "$PROTOCOL" == "SSH" ]
+	then
+		zfs send -R $last_snap_source | ssh -c blowfish $TGT_HOST $TGT_PORT zfs recv $VERBOSE -F $TGT_PATH 2> $0.err
+	fi
+	# using ssh with compression (for slow remote networks)
+	if [ "$PROTOCOL" == "SSHGZIP" ]
+	then
+		zfs send -R $last_snap_source | gzip $ZIPLEVEL -c | ssh -c blowfish $TGT_HOST $TGT_PORT "zcat | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+	fi
+	# using netcat (local network) requires "netcat-traditional", must uninstall "netcat-openbds"
+	if [ "$PROTOCOL" == "NETCAT" ]
+	then
+		ssh -n -f $TGT_HOST $TGT_PORT "nc -w 1 -l -p 8023 | zfs recv $VERBOSE -F $TGT_PATH"
+		sleep 1
+		zfs send -R $last_snap_source | nc $TGT_HOST 8023
+	fi
+	# using socat (local network)
+	if [ "$PROTOCOL" == "SOCAT" ]
+	then
+		zfs send -R $last_snap_source | socat - tcp4:$TGT_HOST:8023,retry=5 &
+		ssh -n $TGT_HOST $TGT_PORT "socat tcp4-listen:8023 - | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+	fi
+	# using netcat in server and socat in client, recomended, requires "netcat-traditional", must uninstall "netcat-openbds"
+	if [ "$PROTOCOL" == "NETSOCAT" ] 
+	then
+		zfs send -R $last_snap_source | socat - tcp4:$TGT_HOST:8023,retry=5 &
+		ssh -n $TGT_HOST $TGT_PORT "nc -w 1 -l -p 8023 | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+	fi
 
-    check_for_error
+	check_for_error
 }
 
 #######################################################################################
@@ -286,46 +321,46 @@ target_fs_create() {
 
 incr_repl_fs() {
 
-    check_last_source_snap  
+	check_last_source_snap  
 
-    check_last_target_snap 
-    stringpos=0
-    let stringpos=$(expr index "$last_snap_target" @)
-    last_snap_target=$SRC_PATH@${last_snap_target:$stringpos}
+	check_last_target_snap 
+	stringpos=0
+	let stringpos=$(expr index "$last_snap_target" @)
+	last_snap_target=$SRC_PATH@${last_snap_target:$stringpos}
 
-    echo $(date) "-> $last_snap_target $last_snap_source Incremental send."
+	echo $(date) "-> $last_snap_target $last_snap_source Incremental send."
 
-    # using ssh (for remote networks)
-    if [ "$PROTOCOL" == "SSH" ]
-    then
-        zfs send -I $last_snap_target $last_snap_source | ssh -c blowfish $TGT_HOST $TGT_PORT zfs recv $VERBOSE -F $TGT_PATH 2> $0.err
-    fi
-    # using ssh with compression (for slow remote networks)
-    if [ "$PROTOCOL" == "SSHGZIP" ]
-    then
-        zfs send -I $last_snap_target $last_snap_source | gzip -1 -c | ssh -c blowfish $TGT_HOST $TGT_PORT "zcat | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
-    fi
-    # using netcat (local network) requires "netcat-traditional", must uninstall "netcat-openbds"
-    if [ "$PROTOCOL" == "NETCAT" ]
-    then
-        ssh -f -n $TGT_HOST $TGT_PORT "nc -w 1 -l -p 8023 | zfs recv $VERBOSE -F $TGT_PATH"
-        sleep 1
-        zfs send -I $last_snap_target $last_snap_source | nc $TGT_HOST 8023 2> $0.err
-    fi
-    # using socat (local network)
-    if [ "$PROTOCOL" == "SOCAT" ]
-    then
-        zfs send -I $last_snap_target $last_snap_source | socat - tcp4:$TGT_HOST:8023,retry=5 &
-        ssh -n $TGT_HOST $TGT_PORT "socat tcp4-listen:8023 - | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
-    fi
-    # using netcat in server and socat in client, recomended, requires "netcat-traditional", must uninstall "netcat-openbds"
-    if [ "$PROTOCOL" == "NETSOCAT" ] 
-    then
-        zfs send -I $last_snap_target $last_snap_source | socat - tcp4:$TGT_HOST:8023,retry=5 &
-        ssh -n $TGT_HOST $TGT_PORT "nc -w 1 -l -p 8023 | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
-    fi
+	# using ssh (for remote networks)
+	if [ "$PROTOCOL" == "SSH" ]
+	then
+		zfs send -I $last_snap_target $last_snap_source | ssh -c blowfish $TGT_HOST $TGT_PORT zfs recv $VERBOSE -F $TGT_PATH 2> $0.err
+	fi
+	# using ssh with compression (for slow remote networks)
+	if [ "$PROTOCOL" == "SSHGZIP" ]
+	then
+		zfs send -I $last_snap_target $last_snap_source | gzip -1 -c | ssh -c blowfish $TGT_HOST $TGT_PORT "zcat | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+	fi
+	# using netcat (local network) requires "netcat-traditional", must uninstall "netcat-openbds"
+	if [ "$PROTOCOL" == "NETCAT" ]
+	then
+		ssh -f -n $TGT_HOST $TGT_PORT "nc -w 1 -l -p 8023 | zfs recv $VERBOSE -F $TGT_PATH"
+		sleep 1
+		zfs send -I $last_snap_target $last_snap_source | nc $TGT_HOST 8023 2> $0.err
+	fi
+	# using socat (local network)
+	if [ "$PROTOCOL" == "SOCAT" ]
+	then
+		zfs send -I $last_snap_target $last_snap_source | socat - tcp4:$TGT_HOST:8023,retry=5 &
+		ssh -n $TGT_HOST $TGT_PORT "socat tcp4-listen:8023 - | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+	fi
+	# using netcat in server and socat in client, recomended, requires "netcat-traditional", must uninstall "netcat-openbds"
+	if [ "$PROTOCOL" == "NETSOCAT" ] 
+	then
+		zfs send -I $last_snap_target $last_snap_source | socat - tcp4:$TGT_HOST:8023,retry=5 &
+		ssh -n $TGT_HOST $TGT_PORT "nc -w 1 -l -p 8023 | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+	fi
 
-    check_for_error
+	check_for_error
 }
 
 #######################################################################################
@@ -337,29 +372,29 @@ incr_repl_fs() {
 
 clean_remote_snaps() {
 
-    ssnap_list=$(zfs list -H -o name -t snapshot | grep  $SRC_PATH\@)
+	ssnap_list=$(zfs list -H -o name -t snapshot | grep  $SRC_PATH\@)
 
-    dsnap_list="snaplist-target.lst"
-    ssh -n $TGT_HOST $TGT_PORT zfs list -H -o name -t snapshot | grep $TGT_PATH\@ > $dsnap_list
+	dsnap_list="snaplist-target.lst"
+	ssh -n $TGT_HOST $TGT_PORT zfs list -H -o name -t snapshot | grep $TGT_PATH\@ > $dsnap_list
 
-    while read dsnaps
-    do
+	while read dsnaps
+	do
 
-        stringpos=0
-        let stringpos=$(expr index "$dsnaps" @)
-        SnapName=${dsnaps:$stringpos}
+		stringpos=0
+		let stringpos=$(expr index "$dsnaps" @)
+		SnapName=${dsnaps:$stringpos}
 
-        ssnaps=$(echo $ssnap_list | grep $SRC_PATH\@$SnapName)
+		ssnaps=$(echo $ssnap_list | grep $SRC_PATH\@$SnapName)
 
-        if [ "$ssnaps" = "" ]
-        then
-            echo $(date) "-> Destroying snapshot $dsnaps on $TGT_HOST"
-            ssh -n $TGT_HOST $TGT_PORT zfs destroy $dsnaps
-        fi
+		if [ "$ssnaps" = "" ]
+		then
+			echo $(date) "-> Destroying snapshot $dsnaps on $TGT_HOST"
+			ssh -n $TGT_HOST $TGT_PORT zfs destroy $dsnaps
+		fi
 
-    done < $dsnap_list
+	done < $dsnap_list
 
-    rm $dsnap_list
+	rm $dsnap_list
 }
 
 #######################################################################################
@@ -373,31 +408,31 @@ clean_remote_snaps() {
 
 clean_old_snaps() {
 
-    check_last_source_snap  
+	check_last_source_snap  
 
-    snap_list="snaplist.lst"
-    zfs list -o name -t snapshot | grep  $SRC_PATH\@$SNP_PREF > $snap_list
+	snap_list="snaplist.lst"
+	zfs list -o name -t snapshot | grep  $SRC_PATH\@$SNP_PREF > $snap_list
 
-    while read snaps
-    do
+	while read snaps
+	do
 
-    if [ "$last_snap_source" != $snaps ]
-    then
-        stringpos=0
-        let stringpos=$(expr index "$snaps" @)+${#SNP_PREF}
-        let SnapDateTime=${snaps:$stringpos}
+	if [ "$last_snap_source" != $snaps ]
+	then
+		stringpos=0
+		let stringpos=$(expr index "$snaps" @)+${#SNP_PREF}
+		let SnapDateTime=${snaps:$stringpos}
 
-        if [ $(date +%Y%m%d%H%M%S --date="$MAX_TIME") -gt $SnapDateTime ]
-        then
-            echo $(date) "-> Destroying snapshot $snaps on localhost"
-            zfs destroy $snaps
-            echo $(date) "-> Destroying snapshot $TGT_PATH@$SNP_PREF$SnapDateTime on $TGT_HOST"
-            ssh -n $TGT_HOST $TGT_PORT -n zfs destroy $TGT_PATH\@$SNP_PREF$SnapDateTime
-        fi
-    fi
+		if [ $(date +%Y%m%d%H%M%S --date="$MAX_TIME") -gt $SnapDateTime ]
+		then
+			echo $(date) "-> Destroying snapshot $snaps on localhost"
+			zfs destroy $snaps
+			echo $(date) "-> Destroying snapshot $TGT_PATH@$SNP_PREF$SnapDateTime on $TGT_HOST"
+			ssh -n $TGT_HOST $TGT_PORT -n zfs destroy $TGT_PATH\@$SNP_PREF$SnapDateTime
+		fi
+	fi
 
-    done < $snap_list
-    rm $snap_list
+	done < $snap_list
+	rm $snap_list
 }
 
 #######################################################################################
@@ -409,62 +444,30 @@ clean_old_snaps() {
 
 compare_filesystems() {
 
-    check_last_source_snap
-    stringpos=0
-    let stringpos=$(expr index "$last_snap_source" @)
-    source_snap_path=$(zfs get -H -o value mountpoint $SRC_PATH)/.zfs/snapshot/${last_snap_source:$stringpos}
+	check_last_source_snap
+	stringpos=0
+	let stringpos=$(expr index "$last_snap_source" @)
+	source_snap_path=$(zfs get -H -o value mountpoint $SRC_PATH)/.zfs/snapshot/${last_snap_source:$stringpos}
 
-    check_last_target_snap  
-    stringpos=0
-    let stringpos=$(expr index "$last_snap_target" @)
-    target_snap_path=$(ssh -n $TGT_HOST $TGT_PORT zfs get -H -o value mountpoint $TGT_PATH)/.zfs/snapshot/${last_snap_target:$stringpos}
+	check_last_target_snap  
+	stringpos=0
+	let stringpos=$(expr index "$last_snap_target" @)
+	target_snap_path=$(ssh -n $TGT_HOST $TGT_PORT zfs get -H -o value mountpoint $TGT_PATH)/.zfs/snapshot/${last_snap_target:$stringpos}
 
 
-    echo $(date) "-> comparing $source_snap_path to $TGT_HOST:$target_snap_path"
-    rm $0.stats
-    rsync -e "ssh $TGT_PORT" --recursive --checksum --dry-run --compress --stats --quiet --log-file-format="" --log-file=$0.stats $source_snap_path/ $TGT_HOST:$target_snap_path/ 2> $0.err
-    check_for_error
+	echo $(date) "-> comparing $source_snap_path to $TGT_HOST:$target_snap_path"
+	rm $0.stats
+	rsync -e "ssh $TGT_PORT" --recursive --checksum --dry-run --compress --stats --quiet --log-file-format="" --log-file=$0.stats $source_snap_path/ $TGT_HOST:$target_snap_path/ 2> $0.err
+	check_for_error
 
-    file_stat="files transferred:"
-    file_difs=$(grep "$file_stat" $0.stats)
-    let stringpos=$(awk -v a="$file_difs" -v b="$file_stat" 'BEGIN{print index(a,b)}')+${#file_stat}
-    file_difs=${file_difs:$stringpos}
-    if [ $file_difs != '0' ]
-    then
-        log_error "error comparing source and target filesystem"
-    fi
-}
-
-#######################################################################################
-####################################Function###########################################
-#######################################################################################
-#
-# help
-#
-
-show_help() {
-    echo "-h target user@host"
-    echo "-p target ssh port"
-    echo "-s source zfs dataset"
-    echo "-d target zfs dataset (default = source)"
-    echo "-f snapshot prefix"
-    echo "-t max time to preserve snapshots"
-    echo '   eg. "7 days ago", "12 hours ago", "10 minutes ago", (default infinite)'
-    echo "-v verbose"
-    echo "-c clean snapshots in target that are not in source"
-    echo "-k compare source and target with checksum using rsync"
-    echo "-n no snapshot"
-    echo "-r no replicate"
-    echo "-z create target filesystem if needed"
-    echo "-o replication protocol"
-    echo "   SSH (remote networks)"
-    echo "   SSHGZIP (remote networks, low bandwith)"
-    echo "   NETCAT (use port 8023)"
-    echo "   SOCAT (use port 8023)"
-    echo "   NETSOCAT (recomended, netcat in server / socat in client, use port 8023)"
-    echo "   netcat requires package netcat-traditional, netcat-openbsd is not supported"
-    echo "-l compression level 1..9 (default 6)"
-    exit
+	file_stat="files transferred:"
+	file_difs=$(grep "$file_stat" $0.stats)
+	let stringpos=$(awk -v a="$file_difs" -v b="$file_stat" 'BEGIN{print index(a,b)}')+${#file_stat}
+	file_difs=${file_difs:$stringpos}
+	if [ $file_difs != '0' ]
+	then
+		log_error "error comparing source and target filesystem"
+	fi
 }
 
 #######################################################################################
@@ -474,27 +477,27 @@ show_help() {
 # check and complete parameters
 if [ "$TGT_HOST" == "" ]
 then
-    echo "Missing parameter target host -h"
-    show_help
+	echo "Missing parameter target host -h"
+	show_help
 fi
 if [ "$SRC_PATH" == "" ]
 then
-    echo "Missing parameter source path -s"
-    show_help
+	echo "Missing parameter source path -s"
+	show_help
 fi
 if [ "$TGT_PATH" == "" ]
 then
-    TGT_PATH=$SRC_PATH
+	TGT_PATH=$SRC_PATH
 fi
 if [[ ("$PROTOCOL" != "SSH") && ("$PROTOCOL" != "SSHGZIP") && ("$PROTOCOL" != "NETCAT")  && ("$PROTOCOL" != "SOCAT")  && ("$PROTOCOL" != "NETSOCAT") ]]
 then
-    echo "incorrect protocol -o $PROTOCOL"
-    show_help
+	echo "incorrect protocol -o $PROTOCOL"
+	show_help
 fi
 
 # delete .err file
 if [ -e "$0.err" ]; then
-    rm $0.err
+	rm $0.err
 fi
 
 # set the control flag
@@ -503,52 +506,52 @@ touch $FLG_FILE
 #Create a new snapshot of the path spec.
 if [ $SNAPSHOT == true ]
 then
-    create_fs_snap
+	create_fs_snap
 fi
 
 # Send the snapshots to the remote and create the fs if required
 if [ $REPLICATE == true ]
 then
-    # Test for the existence of zfs file system path on the target host.
-    target_fs_exists
+	# Test for the existence of zfs file system path on the target host.
+	target_fs_exists
 
-    if [ "$target_fs_name" == "" ]
-    then
+	if [ "$target_fs_name" == "" ]
+	then
 
-        # Create a first time replication.
-        if [ $CREATEFS == true ]
-        then
-            target_fs_create
-        else
-            echo $(date) "-> use option -z to create file system in target host"
-        fi
+		# Create a first time replication.
+		if [ $CREATEFS == true ]
+		then
+			target_fs_create
+		else
+			echo $(date) "-> use option -z to create file system in target host"
+		fi
 
-    else
+	else
 
-        # Clean up any snapshots in target that is not source
-        if [ $CLEAN == true ]
-        then
-            clean_remote_snaps 2> $0.err
-            check_for_error
-        fi
+		# Clean up any snapshots in target that is not source
+		if [ $CLEAN == true ]
+		then
+			clean_remote_snaps 2> $0.err
+			check_for_error
+		fi
 
-        # Initiate a dif replication.
-        incr_repl_fs 2> $0.err
-        check_for_error
+		# Initiate a dif replication.
+		incr_repl_fs 2> $0.err
+		check_for_error
 
-        # Clean up any snapshots that are old.
-        if [ "$MAX_TIME" != "" ]
-        then
-            clean_old_snaps 2> $0.err
-            check_for_error
-        fi
-    fi
+		# Clean up any snapshots that are old.
+		if [ "$MAX_TIME" != "" ]
+		then
+			clean_old_snaps 2> $0.err
+			check_for_error
+		fi
+	fi
 fi
 
 # compare filesystems with checksum
 if [ $COMPARE == true ]
 then
-    compare_filesystems
+	compare_filesystems
 fi
 
 # clean flag file an end script
