@@ -1,0 +1,96 @@
+ZFS REPLICATION SCRIPT
+
+
+It's designed to run in ubuntu 12.04 with zfs on linux but with litle changes could be run in solaris / bsd / openindiana
+
+
+Multiple replication schemas
+This script can be configured in cron to be run every "n" time.
+
+It support multiple cron entries  using diferent prefix snapshots
+For example you can create 3 cron entries:
+
+a) run every minute from 8:00 to 18:00. Options: -f min -t "60 minutes ago"
+     We set "min" as prefix for the snapshots and we keep snapshots for 60 minutes. 
+    
+b) run every day at 20:00. Options: -f day -t "30 days ago"
+     We set "day" as prefix for the snapshots and we keep snapshots for 30 days. 
+
+
+c) run every day 1 of month at 21:00. Options: -f mth -t "3 month ago"
+     We set "mth" as prefix for the snapshots and we keep snapshots for 3 months. 
+
+
+Comunication protocols
+It support diferent protocols:
+SSH
+SSH+GZIP
+NETCAT
+SOCAT
+SOCAT CLIENT + NETCAT SERVER
+
+In my test I usualy get 50MB/s using SSH and 250MB/s using NETCAT
+
+For NETCAT you need to uninstall netcad-openbsd package and install netcat-traditional, because the openbsd version does not support listening timeout.
+
+Filesystem check
+
+After replication It can compare source and target using a dry-run rsync with checksum. This is for security because zfs for linux is still release candidate.
+
+
+The Script
+Parameters
+
+-h  target host 
+    ip or hostname of target server
+
+-p  target ssh port
+    port number of target server 
+
+-s  source zfs dataset
+ 
+-d  target zfs dataset (default = source) 
+
+-f  snapshot prefix
+    is the prefix used to name the snapshots.
+    it let setup multiple cron programs
+    whith different time preservation
+
+-t  max time to preserve snapshots (default infinite).
+    Examples:
+    -t "7 days ago"
+    -t "12 hours ago"
+    -t "10 minutes ago"
+
+
+-v  verbose
+    verbose zfs receive streams 
+
+-c  clean snapshots in target that are not in source
+ 
+-k  compare source and target with checksum using rsync
+ 
+-n  no snapshot
+ 
+-r  no replicate
+ 
+-z  create target dataset if needed
+ 
+-o  replication protocol
+    -o SSH
+       for internet connections with good bandwith. >= 50 MB/s 
+    -o SSHGZIP  compresed with gzip
+       for medium/low bandwith conections < 50 MB/s
+    -o NETCAT  it replicate using NETCAT on port 8023
+       for lan networks >= 100 MB/s
+       requires package netcat-traditional
+       netcat-openbsd is not supported
+    -o SOCAT same as NETCAT but use SOCAT package
+    -o NETSOCAT  this is the recomended option for local lan
+       it use netcat in server and socat in client
+       it's the most stable and fault tolerant
+       because netcat support listening timeout
+       and socat support conection retryes
+ 
+-l  compression level 1..9 (default 6)
+    for use with SSHGZIP protocol
