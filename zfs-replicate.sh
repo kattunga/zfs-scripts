@@ -11,7 +11,7 @@
 #    Mike La Spina for the original concept and script http://blog.laspina.ca/
 #  
 # Function: Provides snapshot and send process which replicates ZFS file systems from a source to target server.
-# Maintains a runing snapshot archive for X days (X being the value of MAX_TIME).
+# Maintains a runing snapshot archive for X time
 #
 
 # email configuration, install package mailutils, ssmtp and configure /etc/ssmtp/ssmtp.conf
