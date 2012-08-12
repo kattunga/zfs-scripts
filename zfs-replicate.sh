@@ -19,9 +19,9 @@
 # email configuration. Install package mailutils, ssmtp and configure /etc/ssmtp/ssmtp.conf
 #######################################################################################
 
-mail_from=sop_warn@sig2k.com.ar
-mail_to=sop_warn@sig2k.com.ar
-mail_subject="server-sig-64 - fallo de replicacion"
+mail_from=
+mail_to=
+mail_subject=
 
 #######################################################################################
 ##################### Do not touch anything below this line ###########################
