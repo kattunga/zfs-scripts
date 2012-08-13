@@ -28,7 +28,7 @@ mail_subject=
 #######################################################################################
 
 show_help() {
-     echo "-h target user@host"
+	echo "-h target user@host"
 	echo "-p target ssh port"
 	echo "-s source zfs dataset"
 	echo "-d target zfs dataset (default = source)"
