@@ -475,24 +475,27 @@ compare_filesystems() {
 #######################################################################################
 
 # check and complete parameters
-if [ "$TGT_HOST" == "" ]
-then
-	echo "Missing parameter target host -h"
-	show_help
-fi
 if [ "$SRC_PATH" == "" ]
 then
 	echo "Missing parameter source path -s"
 	show_help
 fi
-if [ "$TGT_PATH" == "" ]
+if [[ ($REPLICATE == true) || ($COMPARE == true) ]]
 then
-	TGT_PATH=$SRC_PATH
-fi
-if [[ ("$PROTOCOL" != "SSH") && ("$PROTOCOL" != "SSHGZIP") && ("$PROTOCOL" != "NETCAT")  && ("$PROTOCOL" != "SOCAT")  && ("$PROTOCOL" != "NETSOCAT") ]]
-then
-	echo "incorrect protocol -o $PROTOCOL"
-	show_help
+	if [ "$TGT_HOST" == "" ]
+	then
+		echo "Missing parameter target host -h"
+		show_help
+	fi
+	if [ "$TGT_PATH" == "" ]
+	then
+		TGT_PATH=$SRC_PATH
+	fi
+	if [[ ("$PROTOCOL" != "SSH") && ("$PROTOCOL" != "SSHGZIP") && ("$PROTOCOL" != "NETCAT")  && ("$PROTOCOL" != "SOCAT")  && ("$PROTOCOL" != "NETSOCAT") ]]
+	then
+		echo "incorrect protocol -o $PROTOCOL"
+		show_help
+	fi
 fi
 
 # delete .err file
