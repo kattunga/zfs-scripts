@@ -426,8 +426,11 @@ clean_old_snaps() {
 		then
 			echo $(date) "-> Destroying snapshot $snaps on localhost"
 			zfs destroy $snaps
-			echo $(date) "-> Destroying snapshot $TGT_PATH@$SNP_PREF$SnapDateTime on $TGT_HOST"
-			ssh -n $TGT_HOST $TGT_PORT -n zfs destroy $TGT_PATH\@$SNP_PREF$SnapDateTime
+			if [ $REPLICATE == true ]
+			then
+				echo $(date) "-> Destroying snapshot $TGT_PATH@$SNP_PREF$SnapDateTime on $TGT_HOST"
+				ssh -n $TGT_HOST $TGT_PORT -n zfs destroy $TGT_PATH\@$SNP_PREF$SnapDateTime
+			fi
 		fi
 	fi
 
@@ -548,6 +551,13 @@ then
 			clean_old_snaps 2> $0.err
 			check_for_error
 		fi
+	fi
+else
+	# Clean up any snapshots that are old.
+	if [ "$MAX_TIME" != "" ]
+	then
+		clean_old_snaps 2> $0.err
+		check_for_error
 	fi
 fi
 
