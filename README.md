@@ -1,4 +1,4 @@
 zfs-scripts
 ===========
 
-Scripts for perform diferent task on ZFS filesystems
+Scripts for perform replication and snapshots tasks on ZFS filesystems

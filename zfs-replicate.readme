@@ -1,13 +1,16 @@
 ZFS REPLICATION SCRIPT
 
 
-It's designed to run in ubuntu 12.04 with zfs on linux but with litle changes could be run in solaris / bsd / openindiana
+Tested in:
+	Ubuntu 12.04 + zfsonlinux	(all protocols)
+	Nexentastor 3.1.3.5		(SSH,SSH+GZIP)
 
 
-Multiple replication schemas
+Support multiple simultaneous replication schemas
+
 This script can be configured in cron to be run every "n" time.
 
-It support multiple cron entries  using diferent prefix snapshots
+It support multiple cron entries using diferent prefix snapshots
 For example you can create 3 cron entries:
 
 a) run every minute from 8:00 to 18:00. Options: -f min -t "60 minutes ago"
@@ -22,7 +25,9 @@ c) run every day 1 of month at 21:00. Options: -f mth -t "3 month ago"
 
 
 Comunication protocols
+
 It support diferent protocols:
+
 SSH
 SSH+GZIP
 NETCAT
@@ -33,13 +38,19 @@ In my test I usualy get 50MB/s using SSH and 250MB/s using NETCAT
 
 For NETCAT you need to uninstall netcad-openbsd package and install netcat-traditional, because the openbsd version does not support listening timeout.
 
+
 Filesystem check
 
 After replication It can compare source and target using a dry-run rsync with checksum. This is for security because zfs for linux is still release candidate.
 
 
-The Script
-Parameters
+Common Issues:
+
+For first time replication use parameter "-z"
+Dataset should not exists in target for first time replication. If targert exists and there is no snapshot it will fail saying "There is no snapshots in target filesystem"
+
+
+The Script parameters:
 
 -h  target host 
     ip or hostname of target server
@@ -74,8 +85,10 @@ Parameters
  
 -r  no replicate
  
--z  create target dataset if needed
+-z  create target dataset if needed (for firt time replication)
  
+-D  use deduplication in target fs and send stream
+
 -o  replication protocol
     -o SSH
        for internet connections with good bandwith. >= 50 MB/s 
