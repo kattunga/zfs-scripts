@@ -29,7 +29,7 @@ mail_subject=
 
 show_help() {
 	echo "-h target user@host"
-	echo "-p target ssh port"
+	echo "-p target ssh port (default 22)"
 	echo "-s source zfs dataset"
 	echo "-d target zfs dataset (default = source)"
 	echo "-f snapshot prefix"
@@ -42,13 +42,14 @@ show_help() {
 	echo "-r do no replicate"
 	echo "-z create target filesystem if needed"
 	echo "-D use deduplication"
-	echo "-o replication protocol"
-	echo "   SSH (remote networks)"
-	echo "   SSHGZIP (remote networks, low bandwith)"
-	echo "   NETCAT (use port 8023)"
-	echo "   SOCAT (use port 8023)"
-	echo "   NETSOCAT (recomended, netcat in server / socat in client, use port 8023)"
-	echo "   netcat requires package netcat-traditional, netcat-openbsd is not supported"
+	echo "-o replication protocol (default SSH)"
+	echo "   SSH"
+	echo "   SSH_GZIP"
+	echo "   NETCAT	(netcat-traditional)"
+	echo "   NETCAT_BSD	(netcat-openbsd)"
+	echo "   SOCAT"
+	echo "   NETSOCAT 	(NETCAT in server / SOCAT in client)"
+	echo "-P NETCAT/SOCAT port (default 8023)"
 	echo "-l compression level 1..9 (default 6)"
 	exit
 }
@@ -68,10 +69,11 @@ REPLICATE=true
 SENDMAIL=false
 CREATEFS=false
 PROTOCOL="SSH"
+NETPORT=8023
 ZIPLEVEL=6
 DEDUP=
 
-while getopts “h:p:s:d:f:t:o:l:vcknrmzD?” OPTION
+while getopts “h:p:s:d:f:t:o:P:l:vcknrmzD?” OPTION
 do
      case $OPTION in
          h)
@@ -94,6 +96,9 @@ do
              ;;
          o)
              PROTOCOL=$OPTARG
+             ;;
+         P)
+             NETPORT=$OPTARG
              ;;
          l)
              ZIPLEVEL=$OPTARG
@@ -278,44 +283,59 @@ target_fs_create() {
 	check_last_source_snap 
 	echo $(date) "-> $last_snap_source Initial replication."
 
-	ssh -n $TGT_HOST $TGT_PORT zfs create -p $TGT_PATH 2> $0.err
-	check_for_error
-	ssh -n $TGT_HOST $TGT_PORT zfs set mountpoint=none $TGT_PATH 2> $0.err
-	check_for_error
-	if [ $DEDUP == "-D" ]
+	if [ "$PROTOCOL" != "DRYRUN" ]
 	then
-		ssh -n $TGT_HOST $TGT_PORT zfs set dedup=on $TGT_PATH 2> $0.err
+		ssh -n $TGT_HOST $TGT_PORT zfs create -p $TGT_PATH 2> $0.err
 		check_for_error
+		ssh -n $TGT_HOST $TGT_PORT zfs set mountpoint=none $TGT_PATH 2> $0.err
+		check_for_error
+		if [ "$DEDUP" == "-D" ]
+		then
+			ssh -n $TGT_HOST $TGT_PORT zfs set dedup=on $TGT_PATH 2> $0.err
+			check_for_error
+		fi
 	fi
 
-	# using ssh (for remote networks)
+	# using ssh
 	if [ "$PROTOCOL" == "SSH" ]
 	then
 		zfs send $DEDUP -R $last_snap_source | ssh -c blowfish $TGT_HOST $TGT_PORT zfs recv $VERBOSE -F $TGT_PATH 2> $0.err
 	fi
-	# using ssh with compression (for slow remote networks)
-	if [ "$PROTOCOL" == "SSHGZIP" ]
+	# using ssh with compression
+	if [ "$PROTOCOL" == "SSH_GZIP" ]
 	then
-		zfs send $DEDUP -R $last_snap_source | gzip $ZIPLEVEL -c | ssh -c blowfish $TGT_HOST $TGT_PORT "zcat | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+		zfs send $VERBOSE $DEDUP -R $last_snap_source | gzip $ZIPLEVEL -c | ssh -c blowfish $TGT_HOST $TGT_PORT "zcat | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
 	fi
-	# using netcat (local network) requires "netcat-traditional", must uninstall "netcat-openbds"
+	# using "netcat-traditional"
 	if [ "$PROTOCOL" == "NETCAT" ]
 	then
-		ssh -n -f $TGT_HOST $TGT_PORT "nc -w 1 -l -p 8023 | zfs recv $VERBOSE -F $TGT_PATH"
-		sleep 1
-		zfs send $DEDUP -R $last_snap_source | nc $TGT_HOST 8023
+		ssh -n -f $TGT_HOST $TGT_PORT "nc -w 5 -l -p $NETPORT | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+		sleep 2
+		zfs send $VERBOSE $DEDUP -R $last_snap_source | nc -w 10 $TGT_HOST $NETPORT 2> $0.err
 	fi
-	# using socat (local network)
+	# using "netcat-openbsd"
+	if [ "$PROTOCOL" == "NETCAT_BSD" ]
+	then
+		ssh -n -f $TGT_HOST $TGT_PORT "nc -l $NETPORT | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+		sleep 2
+		zfs send $VERBOSE $DEDUP -R $last_snap_source | nc -w 10 $TGT_HOST $NETPORT 2> $0.err
+	fi
+	# using socat
 	if [ "$PROTOCOL" == "SOCAT" ]
 	then
-		zfs send $DEDUP -R $last_snap_source | socat - tcp4:$TGT_HOST:8023,retry=5 &
-		ssh -n $TGT_HOST $TGT_PORT "socat tcp4-listen:8023 - | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+		ssh -n -f $TGT_HOST $TGT_PORT "socat tcp4-listen:$NETPORT - | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+		zfs send $VERBOSE $DEDUP -R $last_snap_source | socat - tcp4:$TGT_HOST:$NETPORT,retry=5 2> $0.err
 	fi
 	# using netcat in server and socat in client, recomended, requires "netcat-traditional", must uninstall "netcat-openbds"
 	if [ "$PROTOCOL" == "NETSOCAT" ] 
 	then
-		zfs send $DEDUP -R $last_snap_source | socat - tcp4:$TGT_HOST:8023,retry=5 &
-		ssh -n $TGT_HOST $TGT_PORT "nc -w 1 -l -p 8023 | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+		ssh -n -f $TGT_HOST $TGT_PORT "nc -w 5 -l -p $NETPORT | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+		zfs send $VERBOSE $DEDUP -R $last_snap_source | socat - tcp4:$TGT_HOST:$NETPORT,retry=5 2> $0.err
+	fi
+	# dryrun
+	if [ "$PROTOCOL" == "DRYRUN" ]
+	then
+		zfs send $VERBOSE $DEDUP -R $last_snap_source > /dev/null
 	fi
 
 	check_for_error
@@ -343,31 +363,43 @@ incr_repl_fs() {
 	# using ssh (for remote networks)
 	if [ "$PROTOCOL" == "SSH" ]
 	then
-		zfs send $DEDUP -I $last_snap_target $last_snap_source | ssh -c blowfish $TGT_HOST $TGT_PORT zfs recv $VERBOSE -F $TGT_PATH 2> $0.err
+		zfs send $VERBOSE $DEDUP -I $last_snap_target $last_snap_source | ssh -c blowfish $TGT_HOST $TGT_PORT zfs recv $VERBOSE -F $TGT_PATH 2> $0.err
 	fi
 	# using ssh with compression (for slow remote networks)
-	if [ "$PROTOCOL" == "SSHGZIP" ]
+	if [ "$PROTOCOL" == "SSH_GZIP" ]
 	then
-		zfs send $DEDUP -I $last_snap_target $last_snap_source | gzip -1 -c | ssh -c blowfish $TGT_HOST $TGT_PORT "zcat | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+		zfs send $VERBOSE $DEDUP -I $last_snap_target $last_snap_source | gzip -1 -c | ssh -c blowfish $TGT_HOST $TGT_PORT "zcat | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
 	fi
-	# using netcat (local network) requires "netcat-traditional", must uninstall "netcat-openbds"
+	# using "netcat-traditional"
 	if [ "$PROTOCOL" == "NETCAT" ]
 	then
-		ssh -f -n $TGT_HOST $TGT_PORT "nc -w 1 -l -p 8023 | zfs recv $VERBOSE -F $TGT_PATH"
-		sleep 1
-		zfs send $DEDUP -I $last_snap_target $last_snap_source | nc $TGT_HOST 8023 2> $0.err
+		ssh -n -f $TGT_HOST $TGT_PORT "nc -w 5 -l -p $NETPORT | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+		sleep 2
+		zfs send $VERBOSE $DEDUP -I $last_snap_target  $last_snap_source | nc -w 10 $TGT_HOST $NETPORT 2> $0.err
 	fi
-	# using socat (local network)
+	# using "netcat-openbsd"
+	if [ "$PROTOCOL" == "NETCAT_BSD" ]
+	then
+		ssh -n -f $TGT_HOST $TGT_PORT "nc -l $NETPORT | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+		sleep 2
+		zfs send $VERBOSE $DEDUP -I $last_snap_target  $last_snap_source | nc -w 10 $TGT_HOST $NETPORT 2> $0.err
+	fi
+	# using socat
 	if [ "$PROTOCOL" == "SOCAT" ]
 	then
-		zfs send $DEDUP -I $last_snap_target $last_snap_source | socat - tcp4:$TGT_HOST:8023,retry=5 &
-		ssh -n $TGT_HOST $TGT_PORT "socat tcp4-listen:8023 - | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+		ssh -n -f $TGT_HOST $TGT_PORT "socat tcp4-listen:$NETPORT - | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+		zfs send $VERBOSE $DEDUP -R $last_snap_source | socat - tcp4:$TGT_HOST:$NETPORT,retry=5 2> $0.err
 	fi
 	# using netcat in server and socat in client, recomended, requires "netcat-traditional", must uninstall "netcat-openbds"
 	if [ "$PROTOCOL" == "NETSOCAT" ] 
 	then
-		zfs send $DEDUP -I $last_snap_target $last_snap_source | socat - tcp4:$TGT_HOST:8023,retry=5 &
-		ssh -n $TGT_HOST $TGT_PORT "nc -w 1 -l -p 8023 | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+		ssh -n -f $TGT_HOST $TGT_PORT "nc -w 5 -l -p $NETPORT | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+		zfs send $VERBOSE $DEDUP -I $last_snap_target  $last_snap_source | socat - tcp4:$TGT_HOST:$NETPORT,retry=5 2> $0.err
+	fi
+	# dryrun
+	if [ "$PROTOCOL" == "DRYRUN" ]
+	then
+		zfs send $VERBOSE $DEDUP -I $last_snap_target $last_snap_source > /dev/null
 	fi
 
 	check_for_error
@@ -504,7 +536,7 @@ then
 	then
 		TGT_PATH=$SRC_PATH
 	fi
-	if [[ ("$PROTOCOL" != "SSH") && ("$PROTOCOL" != "SSHGZIP") && ("$PROTOCOL" != "NETCAT")  && ("$PROTOCOL" != "SOCAT")  && ("$PROTOCOL" != "NETSOCAT") ]]
+	if [[ ("$PROTOCOL" != "SSH") && ("$PROTOCOL" != "SSH_GZIP") && ("$PROTOCOL" != "NETCAT")  && ("$PROTOCOL" != "NETCAT_BSD")  && ("$PROTOCOL" != "SOCAT")  && ("$PROTOCOL" != "NETSOCAT")  && ("$PROTOCOL" != "DRYRUN") ]]
 	then
 		echo "incorrect protocol -o $PROTOCOL"
 		show_help

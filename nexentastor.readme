@@ -1,0 +1,16 @@
+Setting crontab:
+
+I prefer nano as editor:
+
+login as admin
+
+su root
+
+update-alternatives --config editor
+
+EDITOR=nano
+
+export EDITOR
+
+crontab -e
+
