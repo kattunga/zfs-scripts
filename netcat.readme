@@ -1,0 +1,13 @@
+test bandwidth with netcat
+
+server side:
+
+nc -v -v -l -n -p 2222 > /dev/null
+
+
+client side:
+
+time yes|nc -v -v -n 10.0.1.13 2222
+
+
+stop with ctr+c after 10 to 20 seconds and the divide sent bytes by real time to obtain MB/s and multiply by 8 to obtain Mb/s
