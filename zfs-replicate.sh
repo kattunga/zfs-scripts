@@ -70,7 +70,7 @@ SENDMAIL=false
 CREATEFS=false
 PROTOCOL="SSH"
 NETPORT=8023
-ZIPLEVEL=6
+ZIPLEVEL=-6
 DEDUP=
 
 while getopts “h:p:s:d:f:t:o:P:l:vcknrmzD?” OPTION
@@ -101,7 +101,7 @@ do
              NETPORT=$OPTARG
              ;;
          l)
-             ZIPLEVEL=$OPTARG
+             ZIPLEVEL="-$OPTARG"
              ;;
          v)
              VERBOSE=-v
@@ -304,7 +304,7 @@ target_fs_create() {
 	# using ssh with compression
 	if [ "$PROTOCOL" == "SSH_GZIP" ]
 	then
-		zfs send $VERBOSE $DEDUP -R $last_snap_source | gzip $ZIPLEVEL -c | ssh -c blowfish $TGT_HOST $TGT_PORT "zcat | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+	        zfs send $VERBOSE $DEDUP -R $last_snap_source | gzip $ZIPLEVEL -c | ssh -c blowfish $TGT_HOST $TGT_PORT "zcat | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
 	fi
 	# using "netcat-traditional"
 	if [ "$PROTOCOL" == "NETCAT" ]
@@ -368,7 +368,7 @@ incr_repl_fs() {
 	# using ssh with compression (for slow remote networks)
 	if [ "$PROTOCOL" == "SSH_GZIP" ]
 	then
-		zfs send $VERBOSE $DEDUP -I $last_snap_target $last_snap_source | gzip -1 -c | ssh -c blowfish $TGT_HOST $TGT_PORT "zcat | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
+		zfs send $VERBOSE $DEDUP -I $last_snap_target $last_snap_source | gzip $ZIPLEVEL -c | ssh -c blowfish $TGT_HOST $TGT_PORT "zcat | zfs recv $VERBOSE -F $TGT_PATH" 2> $0.err
 	fi
 	# using "netcat-traditional"
 	if [ "$PROTOCOL" == "NETCAT" ]
